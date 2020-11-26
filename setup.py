@@ -21,15 +21,15 @@ Kaamiki
 
 Kaamiki is a simple machine learning framework for obvious tasks.
 """
-# TODO(xames3): Add a descriptive doc string which would help the
-# users and developers alike to get an idea what and how Kaamiki
-# could assist them right out of the box with minimal efforts.
+# TODO(xames3): Add a descriptive docstring which would help the users
+# and developers alike to get an idea what and how kaamiki could assist
+# them right out of the box with minimal efforts.
 
 import os
 import sys
 
 # Raise exceptions if the host system is not properly configured
-# for installing Kaamiki. See https://github.com/kaamiki/kaamiki
+# for installing kaamiki. See https://github.com/kaamiki/kaamiki
 # for more help.
 if sys.version_info < (3, ):
   sys.exit("Python 2 has officially reached end-of-life and is no longer "
@@ -47,7 +47,7 @@ from setuptools import find_packages, setup
 
 from kaamiki import BASE_DIR, __author__, __name__, __version__
 
-# Flag which raises warning if the installed version of Kaamiki is
+# Flag which raises warning if the installed version of kaamiki is
 # either outdated or a nightly (development) build.
 STATUS = 0
 
@@ -55,18 +55,18 @@ DESCRIPTION = __doc__.splitlines()[3]
 
 
 def parse_readme() -> str:
-  """Parse README.md for long description of Kaamiki."""
+  """Parse README.md for long description of kaamiki."""
   with open("README.md", "r") as file:
     return file.read()
 
-  
+
 with open("requirements.txt", "r") as requirements:
   if os.name == "nt":
     packages = [idx for idx in requirements]
   else:
     skip = ["pywin32", "pypywin32", "pywinauto"]
     packages = [idx for idx in requirements if idx.rstrip() not in skip]
- 
+
 setup(
     name=__name__,
     version=__version__,
@@ -111,7 +111,7 @@ setup(
 )
 
 # Create base directory for caching, logging and storing data for/of
-# a Kaamiki session.
+# a kaamiki session.
 if not BASE_DIR.exists():
   os.mkdir(BASE_DIR)
 with open(BASE_DIR / "update", "w") as update:

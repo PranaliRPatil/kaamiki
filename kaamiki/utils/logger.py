@@ -26,22 +26,53 @@ A Python based utility for logging Kaamiki events.
 import datetime
 import logging
 import os
-import os.path as _os
 import sys
 from distutils.sysconfig import get_python_lib
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
-from types import TracebackType
-from typing import Tuple, Union
+from types import TracebackType as _type
+from typing import Any, Dict, Optional, Tuple, Union
 
 from kaamiki import BASE_DIR, SESSION_USER, Neo, __name__, replace_chars
+from kaamiki.utils.exceptions import InvalidArgumentError
 
 __all__ = ["Logger"]
 
-# NOTE: Most of the doc string content is referenced from the original
+# NOTE: Most of the docstring content is referenced from the original
 # logging module as we are not changing the behaviour of any of its
 # implementation but rather adding some level of scalability, simplicity
 # and flexibility that is required in most of the development scenarios.
+
+_LOGS_DIR = "logs"
+
+# NOTE: All log events are recorded in `_DEFAULT_LOG_PATH` by default,
+# if not being overridden while instantiating. Kaamiki doesn't record
+# error logs seperately!
+_DEFAULT_LOG_PATH = BASE_DIR / SESSION_USER / _LOGS_DIR
+
+# Logging formats for kaamiki. These are formats for date, exception
+# logging message and the log record. Only `_DEFAULT_EXC_FMT` is not an
+# available option for changing.
+_DEFAULT_DATE_FMT = "%b %d, %Y %H:%M:%S"
+_DEFAULT_LOG_FMT = ("%(asctime)s.%(msecs)03d %(levelname)8s "
+                    "%(process)07d [{:>15}] {:>30}:%(lineno)04d : %(message)s")
+_DEFAULT_EXC_FMT = "{0}: {1} {2}on line {3}."
+
+# Character limit for displaying the module name which is logging the
+# record. This value is useful only in case the logger in use uses the
+# default kaamiki logging format.
+_DEFAULT_MODULE_NAME_LIMIT = 30
+
+_LOG_LEVELS = [
+    "CRITICAL",
+    "FATAL",
+    "ERROR",
+    "WARNING",
+    "WARN",
+    "INFO",
+    "DEBUG",
+    "NOTSET",
+]
 
 RESET = "\u001b[39m"
 GRAY = "\u001b[38;5;244m"
@@ -52,19 +83,13 @@ BLUE = "\u001b[38;5;39m"
 CYAN = "\u001b[38;5;14m"
 ORANGE = "\u001b[38;5;208m"
 
-SYS_EXC_INFO_TYPE = Tuple[type, BaseException, TracebackType]
-
-# NOTE: All log events are recorded in `DEFAULT_LOG_PATH` by default, if
-# not being overridden while instantiating. Kaamiki doesn't record error
-# logs seperately!
-DEFAULT_LOG_PATH = BASE_DIR / SESSION_USER / "logs/" 
-
 _colors = {
-    logging.DEBUG: GRAY,
-    logging.INFO: GREEN,
-    logging.WARNING: YELLOW,
-    logging.ERROR: ORANGE,
     logging.CRITICAL: RED,
+    logging.ERROR: ORANGE,
+    logging.WARNING: YELLOW,
+    logging.INFO: GREEN,
+    logging.DEBUG: GRAY,
+    logging.NOTSET: CYAN,
 }
 
 
@@ -86,25 +111,28 @@ class _Formatter(logging.Formatter, metaclass=Neo):
   are inspired from the `Spring Boot` framework.
   """
 
-  def __init__(self, date_fmt: str = None, fmt: str = None) -> None:
+  def __init__(self,
+               date_fmt: Optional[str] = None,
+               fmt: Optional[str] = None,
+               traceback: bool = False) -> None:
     """
     Initialize formatter.
 
     Initialize the formatter either with the specified format
-    strings, or use default Kaamiki format as said above.
+    strings, or use default kaamiki format as said above.
     """
     if not date_fmt:
-      date_fmt = "%b %d, %Y %H:%M:%S"
+      date_fmt = _DEFAULT_DATE_FMT
     self.date_fmt = date_fmt
     self.user_fmt = True
     if not fmt:
       self.user_fmt = False
-      fmt = ("%(asctime)s.%(msecs)03d %(levelname)8s %(process)07d "
-             "[{:>15}] {:>30}:%(lineno)04d : %(message)s")
+      fmt = _DEFAULT_LOG_FMT
     self.fmt = fmt
-    self.exc_fmt = "{0}: {1} {2}on line {3}"
+    self.exc_fmt = _DEFAULT_EXC_FMT
+    self.traceback = traceback
 
-  def formatException(self, ei: SYS_EXC_INFO_TYPE) -> str:
+  def formatException(self, ei: Tuple[type, BaseException, _type]) -> str:
     """Format and return the specified exception info as a string."""
     return repr(super().formatException(ei))
 
@@ -122,19 +150,21 @@ class _Formatter(logging.Formatter, metaclass=Neo):
       # Shorten longer module names with an ellipsis while logging.
       # This ensures length of module name stay consistent in logs.
       module = self.relative_path(record.pathname)
-      if len(module) > 30:
-        module = module[:27] + bool(module[27:]) * "..."
+      if len(module) > _DEFAULT_MODULE_NAME_LIMIT:
+        module = (module[:_DEFAULT_MODULE_NAME_LIMIT - 3] +
+                  bool(module[_DEFAULT_MODULE_NAME_LIMIT - 3:]) * "...")
       log = logging.Formatter(self.fmt.format(thd, module), self.date_fmt)
     log = log.format(record)
-    if record.exc_text:
-      func = record.funcName
-      func = f"in {func}() " if func != "<module>" else ""
-      exc_msg = self.exc_fmt.format(record.exc_info[1].__class__.__name__,
-                                    record.msg,
-                                    func,
-                                    record.exc_info[2].tb_lineno)
-      log = log.replace("\n", "").replace(str(record.exc_info[-2]), exc_msg)
-      log, _, _ = log.partition("Traceback")
+    if not self.traceback:
+      if record.exc_text:
+        func = record.funcName
+        func = f"in {func}() " if func != "<module>" else ""
+        exc_msg = self.exc_fmt.format(record.exc_info[1].__class__.__name__,
+                                      record.msg,
+                                      func,
+                                      record.exc_info[2].tb_lineno)
+        log = log.replace("\n", "").replace(str(record.exc_info[-2]), exc_msg)
+        log, _, _ = log.partition("Traceback")
     return log
 
 
@@ -173,9 +203,9 @@ class _StreamHandler(logging.StreamHandler, metaclass=Neo):
 
 class Logger(logging.LoggerAdapter):
   """
-  Logger class for logging all active instances of Kaamiki.
+  Logger class for logging all active instances of kaamiki.
 
-  The class captures all logged Kaamiki events and logs them silently.
+  The class captures all logged kaamiki events and logs them silently.
   Logger is packed with a convenient file handlers along with formatter
   which enables it to sequentially archive, record and clean logs.
 
@@ -208,9 +238,9 @@ class Logger(logging.LoggerAdapter):
 
   When `rotate_by` is set to "size", `Rollover` occurs whenever the
   current log file is nearly `max_bytes` in length. If `max_bytes` is
-  zero, rollover never occurs. If backup_count is >= 1, the system will
+  zero, rollover never occurs. If `backups` is >= 1, the system will
   successively create new files with extensions ".1", ".2" etc.
-  appended to it. For example, with a backup_count of 5 and a base file
+  appended to it. For example, with a backups of 5 and a base file
   name of "kaamiki.log", you would get "kaamiki.log", "kaamiki.log.1",
   "kaamiki.log.2", ... through to "kaamiki.log.5". The file being
   written to is always "kaamiki.log" - when it gets filled up, it is
@@ -219,8 +249,8 @@ class Logger(logging.LoggerAdapter):
   "kaamiki.log.3" etc. respectively.
 
   When `rotate_by` is set to "time" log rotation occurs at certain time
-  intervals. If backup_count is > 0, when rollover is done, no more than
-  backup_count files are kept - the oldest ones are deleted.
+  intervals. If `backups` is > 0, when rollover is done, no more than
+  backups files are kept - the oldest ones are deleted.
 
   Example:
     >>> from kaamiki.utils.logger import Logger
@@ -229,41 +259,50 @@ class Logger(logging.LoggerAdapter):
     >>> logger.info("This is how you use the Logger class")
   """
 
+  suffix = ".log"
+
   def __init__(self,
-               fmt: str = None,
-               date_fmt: str = None,
-               level: Union[int, str] = None,
-               name: str = None,
-               path: str = None,
+               fmt: Optional[str] = None,
+               date_fmt: Optional[str] = None,
+               level: Optional[Union[int, str]] = None,
+               name: Optional[str] = None,
+               path: Optional[Union[Path, str]] = None,
                root: str = None,
-               colored: bool = True,
-               extra: dict = {},
-               rotate: bool = True,
+               colored: Optional[bool] = True,
+               traceback: bool = False,
+               extra: Optional[Dict[str, Any]] = None,
+               rotate: Optional[bool] = True,
                rotate_by: str = "size",
-               max_bytes: int = 1024000,  # Rotate when logs reach 1 MB
+               max_bytes: int = 0,
                when: str = "h",
                interval: int = 1,
                utc: bool = False,
-               at_time: datetime.datetime = None,
-               backup_count: int = 5,
-               encoding: str = None,
-               delay: bool = False) -> None:
+               at_time: Optional[datetime.datetime] = None,
+               backups: int = 0,
+               encoding: Optional[str] = None,
+               delay: bool = False,
+               to_file: Optional[bool] = True) -> None:
     """
     Initialize logger.
 
     Initialize the logger either with default or non-default settings.
-    Default args are configured to work directly with Kaamiki, although
+    Default args are configured to work directly with kaamiki, although
     the behaviour can be easily overridden.
     """
     self.fmt = fmt
     self.date_fmt = date_fmt
+    if not isinstance(level, (int, str)) and level is not None:
+      raise InvalidArgumentError(arg=level, valid=True)
+    if isinstance(level, str) and level not in _LOG_LEVELS:
+      raise ValueError(
+          f"{level!r} is not a valid logging level. "
+          f"Choose correct logging level from these available options: "
+          f"{', '.join(_LOG_LEVELS[:-2] + [' and '.join(_LOG_LEVELS[-2:])])}")
     self.level = logging.getLevelName(level if level else logging.DEBUG)
     self.root = root
     self.colored = colored
-    self.extra = extra
-    self.formatter = _Formatter(self.date_fmt, self.fmt)
-    self.stream = _StreamHandler() if self.colored else logging.StreamHandler()
-    self.stream.setFormatter(self.formatter)
+    self.traceback = traceback
+    self.extra = extra if extra else {}
     self.rotate = rotate
     self.rotate_by = rotate_by
     self.max_bytes = max_bytes
@@ -271,39 +310,77 @@ class Logger(logging.LoggerAdapter):
     self.interval = interval
     self.utc = utc
     self.at_time = at_time
-    self.backup_count = backup_count
+    self.backups = backups
     self.encoding = encoding
     self.delay = delay
+    self.to_file = to_file
+    self.formatter = _Formatter(self.date_fmt, self.fmt, self.traceback)
+    self.stream = _StreamHandler() if self.colored else logging.StreamHandler()
+    self.stream.setFormatter(self.formatter)
+    self.logger = logging.getLogger(self.root if self.root else None)
+    self.logger.setLevel(self.level)
     try:
-      self.py = _os.abspath(sys.modules["__main__"].__file__)
+      self.py = os.path.abspath(sys.modules["__main__"].__file__)
     except AttributeError:
       self.py = "console.py"
     self._name = replace_chars(name if name else Path(self.py).stem)
-    self.path = path if path else DEFAULT_LOG_PATH
-    if not _os.exists(self.path):
+    self.path = path if path else _DEFAULT_LOG_PATH
+    if not Path(self.path).exists():
       os.makedirs(self.path)
-    self._file = _os.join(self.path, "".join([self._name, ".log"]))
-    if self.rotate:
-      if self.rotate_by == "time":
-        self.file = TimedRotatingFileHandler(
-            self._file, self.when, self.interval, self.backup_count,
-            self.encoding, self.delay, self.utc, self.at_time)
+    if self.to_file:
+      self.file_path = Path(self.path) / (self._name + self.suffix)
+      if self.rotate:
+        if self.rotate_by not in ("size", "time"):
+          raise InvalidArgumentError(arg=self.rotate_by, valid=True)
+        if self.rotate_by == "time":
+          self.file = TimedRotatingFileHandler(
+              self.file_path, self.when, self.interval, self.backups,
+              self.encoding, self.delay, self.utc, self.at_time)
+        else:
+          # If rotation or rollover is wanted, it makes no sense to use
+          # another mode than `a`. Hence, it is not configurable.
+          self.file = RotatingFileHandler(
+              self.file_path, "a", self.max_bytes, self.backups, self.encoding,
+              self.delay)
       else:
-        # If rotation or rollover is wanted, it makes no sense to use
-        # another mode than `a`. Hence, the `mode` argument is not
-        # configurable.
-        self.file = RotatingFileHandler(
-            self._file, "a", self.max_bytes, self.backup_count, self.encoding,
-            self.delay)
-    else:
-      self.file = logging.FileHandler(
-          self._file, "a", self.encoding, self.delay)
-    self.file.setFormatter(self.formatter)
-    self.logger = logging.getLogger(self.root if self.root else None)
-    self.logger.setLevel(self.level)
-    self.logger.addHandler(self.file)
+        self.file = logging.FileHandler(
+            self.file_path, "a", self.encoding, self.delay)
+      self.file.setFormatter(self.formatter)
+      self.logger.addHandler(self.file)
     self.logger.addHandler(self.stream)
 
   def __repr__(self) -> str:
-    """Return string representation of Kaamiki's logger object."""
-    return f"KaamikiLogger(name={self.root!r}, level={self.level!r})"
+    """Return the canonical string representation of kaamiki logger."""
+    return f"{self.__class__.__name__}(root={self.root!r})"
+
+  def critical(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log message with `CRITICAL` logging level."""
+    for line in str(msg).splitlines():
+      self.logger.critical(line, *args, **kwargs, stacklevel=2)
+
+  def error(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log message with `ERROR` logging level."""
+    for line in str(msg).splitlines():
+      self.logger.error(line, *args, **kwargs, stacklevel=2)
+
+  def warning(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log message with `WARNING` logging level."""
+    for line in str(msg).splitlines():
+      self.logger.warning(line, *args, **kwargs, stacklevel=2)
+
+  def info(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log message with `INFO` logging level."""
+    for line in str(msg).splitlines():
+      self.logger.info(line, *args, **kwargs, stacklevel=2)
+
+  def debug(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log message with `DEBUG` logging level."""
+    for line in str(msg).splitlines():
+      self.logger.debug(line, *args, **kwargs, stacklevel=2)
+
+  def exception(self, msg: Any, *args: Any, **kwargs: Any) -> None:
+    """Log exception with traceback."""
+    self.logger.error(msg, *args, **kwargs, exc_info=True, stacklevel=2)
+
+  fatal = critical
+  warn = warning

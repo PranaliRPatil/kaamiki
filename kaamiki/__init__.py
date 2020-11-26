@@ -19,7 +19,7 @@
 """
 Kaamiki
 
-A Python based implementation of Kaamiki.
+A Python based implementation of kaamiki.
 
 Kaamiki is a simple machine learning framework for obvious tasks. It is
 an operating system agnostic AI* developing package which aims at
@@ -47,10 +47,13 @@ __author__ = "Kaamiki Development Team"
 
 __all__ = ["BASE_DIR", "SESSION_USER", "Neo", "replace_chars", "show_version"]
 
+# Base directory which is used for caching, logging and storing details
+# and data generated for/of a kaamiki session. Making any modifications
+# to the `BASE_DIR` can cause issues as all the session related events,
+# logs and data are stored in this directory.
 BASE_DIR = Path().home() / f".{__name__}"
 
-
-SESSION_USER = replace_chars(getpass.getuser())
+_DEFAULT_SEPARATOR = "_"
 
 
 class Neo(type):
@@ -92,14 +95,14 @@ class Neo(type):
     return cls._instances[cls]
 
 
-  def replace_chars(text: str, sub: str = "_") -> str:
+def replace_chars(text: str, sub: str = _DEFAULT_SEPARATOR) -> str:
   """Replace special characters with substitution string."""
   # See https://stackoverflow.com/a/23996414/14316408 for more help.
-    return re.sub(r"[" + re.escape(string.punctuation) + "]", sub, text).lower()
+  return re.sub(r"[" + re.escape(string.punctuation) + "]", sub, text).lower()
 
 
 def latest_version() -> str:
-  """Check for the latest stable version of Kaamiki on PyPI."""
+  """Check for the latest stable version of kaamiki on PyPI."""
   try:
     PYPI_URL = f"https://pypi.org/pypi/{__name__}/json"
     data = json.load(urllib.request.urlopen(PYPI_URL))["releases"].keys()
@@ -113,15 +116,14 @@ def latest_version() -> str:
 
 def show_version() -> None:
   """
-  Show version status of Kaamiki.
+  Show version status of kaamiki.
 
-  Show the installed version status of Kaamiki with respect to the
+  Show the installed version status of kaamiki with respect to the
   available builds. This function not only displays the installed build
   but displays the upgrade or downgrade recommendations when checked.
   """
   latest = latest_version()
   pkg = __name__.capitalize()
-
   if latest != "NetworkConnectionError":
     if parse_version(__version__) < parse_version(latest):
       print(f"You are using an older version of {pkg}, v{__version__}\n"
@@ -141,4 +143,3 @@ def show_version() -> None:
 
 
 SESSION_USER = replace_chars(getpass.getuser())
-

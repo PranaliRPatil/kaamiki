@@ -19,7 +19,7 @@
 """
 Kaamiki CLI Parser
 
-A command line parsing utility for Kaamiki. The module provides a
+A command line parsing utility for kaamiki. The module provides a
 high-level argument parser that can handle both argument (optional and
 positional) and provides helpful usage descriptions thereby exposing
 the main parser.
@@ -41,35 +41,38 @@ __all__ = ["main"]
 # change with time and modifications happening in the existing
 # implementation, so calling it directly is probably not a good idea.
 
-COPYRIGHT = f"Copyright (c) 2020 {__author__}. All rights reserved."
-EPILOG = (f"For specific information about a particular command, run "
-          f"\"{__name__} <command> -h\".")
-URL = "Read complete documentation at: https://github.com/kaamiki/kaamiki"
-USAGE = f"{__name__} <command> [options] ..."
+# Project URL and the copyright information should be added at the end
+# of all the parser object events.
+_URL = "Read complete documentation at: https://github.com/kaamiki/kaamiki"
+_COPYRIGHT = f"Copyright (c) 2020 {__author__}. All rights reserved."
+
+_USAGE = f"{__name__} <command> [options] ..."
+_EPILOG = (f"For specific information about a particular command, run "
+           f"\"{__name__} <command> -h\".")
 
 
 class Parser(argparse.ArgumentParser):
   """
   Parse command line arguments.
 
-  This class provides a high-level API for using instances of Kaamiki
+  This class provides a high-level API for using instances of kaamiki
   direct from the command line. Python's builtin `ArgumentParser` is
   great but it lacks a couple of things like a simple and uniform help
   section or rather a nested description section that could help the
   users to navigate within the framework easily.
 
-  The class also aims at using Kaamiki with ease as the argument
+  The class also aims at using kaamiki with ease as the argument
   parsing provides the necessary function or method calls via simple
   command line inputs. The parser will then convert the command line
-  strings into Kaamiki instances. Most of the Kaamiki objects will have
-  their own set of help texts (doc strings) for understanding the
+  strings into kaamiki instances. Most of the kaamiki objects will have
+  their own set of help texts (docstrings) for understanding the
   behaviour and the implementation of a particular class or object, this
   class will provide a better visual representation of that information
   needed to parse the argument(s) to the callable instance from the
   command line.
 
   It enables the usage of keyword, "kaamiki" to call instances of
-  Kaamiki's methods.
+  kaamiki's methods.
 
   NOTE: The scope of this class is not to defy the behaviour of the
   builtin `ArgumentParser` but to embrace it and work as a simple
@@ -81,7 +84,7 @@ class Parser(argparse.ArgumentParser):
     Initialize parser.
 
     Initialize parser for converting the command line inputs into
-    Kaamiki objects.
+    kaamiki objects.
     """
     self.width = round(os.get_terminal_size().columns / 1.3)
     self.program = {key: kwargs[key] for key in kwargs}
@@ -89,7 +92,7 @@ class Parser(argparse.ArgumentParser):
     self.options = []
     # Define program keyword, `prog` as `kaamiki` and make
     # `add_help=False` to add support for custom help message.
-    super().__init__(prog="kaamiki", add_help=False, *args, **kwargs)
+    super().__init__(prog=__name__, add_help=False, *args, **kwargs)
 
   def add_argument(self, *args: Any, **kwargs: Any) -> None:
     """
@@ -278,7 +281,7 @@ class Parser(argparse.ArgumentParser):
             str.isspace(self.program["epilog"]):
       epilog.append("\n")
       epilog.extend(epilog_wrapper.wrap(self.program["epilog"]))
-      epilog.append(f"\n{URL}\n\n{COPYRIGHT}\n")
+      epilog.append(f"\n{_URL}\n\n{_COPYRIGHT}\n")
 
     return description, commands, options, epilog
 
@@ -295,26 +298,33 @@ class Parser(argparse.ArgumentParser):
     sys.exit(1)
 
 
-def main() -> None:
+def _create_parser() -> Parser:
   """
-  Primary Kaamiki entry point.
+  Return parser to parse the command line input.
 
-  The function is powered by `Parser` object which acts like an entry
-  point for Kaamiki when used on command line. It enables the method
-  or function calls from Kaamiki suite using simple commands.
+  The function is powered by `Parser` class which acts like an entry
+  point for kaamiki when used on command line. It enables the method
+  or function calls from kaamiki suite using simple commands.
   """
-  parser = Parser(usage=USAGE, epilog=EPILOG, conflict_handler="resolve")
+  # NOTE(xames3): Consider adding support for subparsers in future.
+  parser = Parser(usage=_USAGE, epilog=_EPILOG, conflict_handler="resolve")
   parser.add_argument("-h", "--help", action="store_true",
                       help="Show this help message.",
                       default=argparse.SUPPRESS)
   parser.add_argument("-V", "--version", action="store_true",
-                      help="Show installed Kaamiki version.",
+                      help="Show installed kaamiki version.",
                       default=argparse.SUPPRESS)
-  cmd_args = parser.parse_args()
+  return parser
 
-  if hasattr(cmd_args, "function"):
-    cmd_args.function(cmd_args)
-  elif hasattr(cmd_args, "version"):
+
+def main() -> None:
+  """Primary kaamiki entry point."""
+  parser = _create_parser()
+  args = parser.parse_args()
+
+  if hasattr(args, "function"):
+    args.function(args)
+  elif hasattr(args, "version"):
     show_version()
   else:
     parser.print_help()
