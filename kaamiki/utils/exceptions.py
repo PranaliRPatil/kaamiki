@@ -28,7 +28,7 @@ def this_is_effing_bug() -> str:
   title = "YIKES! There's a bug:"
   title += "".join(["\n", "-" * len(title)])
   return ("\n\n{}\nIf you are seeing this, then there is something wrong with "
-          "Kaamiki and not your code!\nPlease report this issue immediately "
+          "Kaamiki and not your code.\nPlease report this issue immediately "
           "here: \"https://github.com/kaamiki/kaamiki/issues/new\"\nso that "
           "we can fix the issue at the earliest. It would be a great help if "
           "you could provide\nthe steps, traceback information or even a "
@@ -65,7 +65,7 @@ class UnsupportedFileType(KaamikiError):
 
   def __init__(
           self,
-          message: str = "FileIO operation not supported by {suffix!r} file",
+          message: str = "File I/O operation not supported by {suffix!r} file",
           **kwargs):
     super().__init__(message, **kwargs)
 

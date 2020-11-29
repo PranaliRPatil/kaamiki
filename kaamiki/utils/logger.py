@@ -237,7 +237,7 @@ class Logger(logging.LoggerAdapter):
   certain time frame by updating the `rotate_by` argument.
 
   When `rotate_by` is set to "size", `Rollover` occurs whenever the
-  current log file is nearly `max_bytes` in length. If `max_bytes` is
+  current log file is nearly `max_bytes` in size. If `max_bytes` is
   zero, rollover never occurs. If `backups` is >= 1, the system will
   successively create new files with extensions ".1", ".2" etc.
   appended to it. For example, with a backups of 5 and a base file
