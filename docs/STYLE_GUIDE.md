@@ -16,11 +16,3 @@ limitations under the License.
 Author(s):
     xames3 <44119552+xames3@users.noreply.github.com>
 -->
-
-<!-- markdownlint-disable MD033 MD041 -->
-![Kaamiki](https://github.com/kaamiki/kaamiki/blob/assets/elements/img/kaamiki-banner.png?raw=true "Kaamiki")
-
-## License
-
-Copyright (c) 2020 Kaamiki Development Team. All rights reserved.<br>
-Licensed under the [Apache](https://github.com/kaamiki/kaamiki/blob/master/LICENSE) License 2.0

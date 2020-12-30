@@ -16,76 +16,45 @@
 # Author(s):
 #     xames3 <44119552+xames3@users.noreply.github.com>
 
-"""
-Kaamiki Exceptions
+"""Collection of all the exceptions raised by Kaamiki framework."""
 
-Collection of all the exceptions raised by various kaamiki operations.
-"""
+from typing import Any
 
 
-def this_is_effing_bug() -> str:
-  """Return bug report warning."""
-  title = "YIKES! There's a bug:"
-  title += "".join(["\n", "-" * len(title)])
-  return ("\n\n{}\nIf you are seeing this, then there is something wrong with "
-          "Kaamiki and not your code.\nPlease report this issue immediately "
-          "here: \"https://github.com/kaamiki/kaamiki/issues/new\"\nso that "
-          "we can fix the issue at the earliest. It would be a great help if "
-          "you could provide\nthe steps, traceback information or even a "
-          "sample code for reproducing this bug while\nsubmitting an issue."
-          "\n").format(title)
+class KaamikiBaseException(Exception):
+    """Base exception class for all exceptions raised by Kaamiki."""
 
+    msg = ''
 
-class KaamikiError(Exception):
-  """Base exception class for all kaamiki related exceptions."""
+    def __init__(self, valid: bool = False, **kwargs: Any) -> None:
+        """Initialize exception class with exception message.
 
-  def __init__(self, message: str, valid: bool = False, **kwargs) -> None:
-    if not valid:
-      message += this_is_effing_bug()
-    super().__init__(message)
-    self.message = message
-    for key, value in kwargs.items():
-      setattr(self, key, value)
+        The `valid` argument ensures that the exceptions are raised
+        explicitly by the authors. This guarantees that all the known
+        corner cases in the framework are handled properly or patched
+        nonetheless.
+        """
+        if not valid:
+            self.msg += self.__report_effing_bug()
+        super().__init__(self.msg)
+        for name, value in kwargs.items():
+            setattr(self, name, value)
 
-  def __str__(self) -> str:
-    return self.message.format(**vars(self))
+    def __str__(self) -> str:
+        """Format exception message with valid arguments."""
+        return self.msg.format(**vars(self))
 
-
-class InvalidArgumentError(KaamikiError):
-  """Exception to be raised when a wrong argument is passed."""
-
-  def __init__(self,
-               message: str = "{arg!r} is not a valid argument",
-               **kwargs) -> None:
-    super().__init__(message, **kwargs)
-
-
-class UnsupportedFileType(KaamikiError):
-  """Exception to be raised when dealing with unsupported file types."""
-
-  def __init__(
-          self,
-          message: str = "File I/O operation not supported by {suffix!r} file",
-          **kwargs):
-    super().__init__(message, **kwargs)
-
-
-class FileAlreadyClosed(KaamikiError):
-  """Exception to be raised when closing an already closed file."""
-
-  def __init__(self,
-               message: str = "File {file!r} is already closed",
-               **kwargs) -> None:
-    super().__init__(message, **kwargs)
-
-
-class PermissionDeniedError(KaamikiError):
-  """Exception to be raised when permissions aren't provided to file."""
-
-  def __init__(self,
-               file_path: str,
-               mode: str,
-               **kwargs) -> None:
-    action = "writing" if "r" in mode else "reading"
-    message = f"{file_path!r} doesn't have enough permission for {action} file"
-    super().__init__(message, **kwargs)
+    @staticmethod
+    def __report_effing_bug() -> str:
+        """Return bug reporting warning."""
+        title = 'YIKES! There\'s a bug:'
+        title += ''.join(('\n', '-' * len(title)))
+        return (
+            f'\n\n{title}\nIf you are seeing this, then there is something '
+            f'wrong with Kaamiki and not your code.\nPlease report this '
+            f'issue here: "https://github.com/kaamiki/kaamiki/issues/new" '
+            f'so that\nwe can fix the issue at the earliest. It would be '
+            f'a great help if you could provide the\nsteps, traceback '
+            f'information or even a sample code for reproducing this bug '
+            f'while\nsubmitting an issue.\n'
+        )
